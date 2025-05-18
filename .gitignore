@@ -1,0 +1,109 @@
+# Ignorar diretórios e arquivos de build do frontend (React)
+# ----------------------------------------------------------
+node_modules/
+build/
+dist/
+.parcel-cache/ # Para Parcel bundler
+.cache/ # Para outras ferramentas de build/cache
+
+# Ignorar arquivos de log e de debug do frontend
+# ----------------------------------------------
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+lerna-debug.log*
+
+# Ignorar arquivos de configuração de ambiente (sensíveis)
+# -------------------------------------------------------
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Ignorar arquivos temporários e de cache do frontend
+# -------------------------------------------------
+tmp/
+
+# Ignorar diretórios e arquivos de build do backend (Spring Boot - Maven/Gradle)
+# ---------------------------------------------------------------------------
+target/         # Diretório de build do Maven
+build/          # Diretório de build do Gradle
+
+# Ignorar arquivos e diretórios específicos do Maven
+# -------------------------------------------------
+pom.xml.tag
+pom.xml.bak
+pom.xml.versionsBackup
+pom.xml.next
+releaseArguments.properties
+release.properties
+dependency-reduced-pom.xml
+# Evitar ignorar o wrapper do Maven se você o estiver usando
+!/.mvn/wrapper/maven-wrapper.jar
+
+# Ignorar arquivos e diretórios específicos do Gradle
+# --------------------------------------------------
+.gradle/
+# Evitar ignorar o wrapper do Gradle se você o estiver usando
+!gradlew
+!gradlew.bat
+!/gradle/wrapper/gradle-wrapper.jar
+
+# Ignorar arquivos de log do backend
+# ---------------------------------
+*.log
+logs/
+hs_err_pid*
+
+# Ignorar arquivos de IDEs
+# ------------------------
+## IntelliJ IDEA ##
+.idea/
+*.iml
+*.iws
+*.ipr
+
+## Eclipse ##
+.metadata
+.classpath
+.project
+.settings/
+
+## VS Code ##
+.vscode/
+
+## NetBeans ##
+nbproject/private/
+build/
+dist/
+nbbuild/
+.nb-gradle/
+
+# Ignorar arquivos de sistema operacional
+# ---------------------------------------
+.DS_Store
+Thumbs.db
+
+# Ignorar outros arquivos gerados
+# -------------------------------
+*.class
+
+# Ignorar resultados de testes (se não forem versionados)
+# -------------------------------------------------------
+# /test-results/
+
+# Ignorar diretórios de dependências específicas (se houver)
+# ----------------------------------------------------------
+# Caso você tenha alguma pasta de dependências que não seja node_modules ou gerenciada pelo build do backend
+
+# Arquivos de configuração que podem ser gerados automaticamente ou conter informações locais
+# -----------------------------------------------------------------------------------------
+# Pode ser necessário ajustar dependendo da sua configuração específica
+
+# Outras exclusões gerais
+# -----------------------
+*.swp
+*~
+.#*
