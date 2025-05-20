@@ -20,7 +20,14 @@ CREATE SCHEMA sv_game;
 ALTER SCHEMA sv_game OWNER TO postgres;
 -- ddl-end --
 
-SET search_path TO pg_catalog,public,sv_game;
+-- object: sv_debts | type: SCHEMA --
+-- DROP SCHEMA IF EXISTS sv_debts CASCADE;
+CREATE SCHEMA sv_debts;
+-- ddl-end --
+ALTER SCHEMA sv_debts OWNER TO postgres;
+-- ddl-end --
+
+SET search_path TO pg_catalog,public,sv_game,sv_debts;
 -- ddl-end --
 
 -- object: sv_game.games | type: TABLE --
@@ -37,19 +44,31 @@ CREATE TABLE sv_game.games (
 ALTER TABLE sv_game.games OWNER TO postgres;
 -- ddl-end --
 
--- object: sv_game.player_attributes | type: TABLE --
--- DROP TABLE IF EXISTS sv_game.player_attributes CASCADE;
-CREATE TABLE sv_game.player_attributes (
-	attribute_id uuid NOT NULL,
-	strength integer NOT NULL DEFAULT 1,
-	intelligence integer NOT NULL DEFAULT 1,
-	charisma integer NOT NULL DEFAULT 1,
-	luck integer NOT NULL DEFAULT 1,
-	last_updated_time timestamptz NOT NULL,
-	CONSTRAINT player_attributes_pk PRIMARY KEY (attribute_id)
+-- object: sv_game.players | type: TABLE --
+-- DROP TABLE IF EXISTS sv_game.players CASCADE;
+CREATE TABLE sv_game.players (
+	player_id uuid NOT NULL,
+	name varchar(255) NOT NULL,
+	gender varchar(50) NOT NULL,
+	appearance_data jsonb NOT NULL,
+	cash_balance numeric(64,2) NOT NULL DEFAULT 0.00,
+	health integer NOT NULL DEFAULT 100,
+	happiness integer NOT NULL DEFAULT 100,
+	karma integer NOT NULL DEFAULT 500,
+	energy integer NOT NULL DEFAULT 100,
+	education_level varchar(100) NOT NULL DEFAULT 'None',
+	education_score integer NOT NULL DEFAULT 0,
+	experience_points integer NOT NULL DEFAULT 0,
+	date_of_birth date NOT NULL,
+	age integer NOT NULL,
+	game_id_games uuid,
+	city_id_cities uuid,
+	plot_id_plots uuid,
+	job_id_jobs uuid,
+	CONSTRAINT players_pk PRIMARY KEY (player_id)
 );
 -- ddl-end --
-ALTER TABLE sv_game.player_attributes OWNER TO postgres;
+ALTER TABLE sv_game.players OWNER TO postgres;
 -- ddl-end --
 
 -- object: sv_game.banks | type: TABLE --
@@ -180,7 +199,7 @@ CREATE TABLE sv_game.plots (
 	is_available_for_sale boolean NOT NULL DEFAULT TRUE,
 	purchase_price numeric(32,2) NOT NULL,
 	current_value numeric(32,2) NOT NULL,
-	zoning_type varchar(50) NOT NULL DEFAULT "Not Zoned",
+	zoning_type varchar(50) NOT NULL DEFAULT 'Not Zoned',
 	is_empty boolean NOT NULL DEFAULT TRUE,
 	last_update_time timestamptz NOT NULL,
 	city_id_cities uuid,
@@ -206,20 +225,28 @@ CREATE TABLE sv_game.business_categories (
 ALTER TABLE sv_game.business_categories OWNER TO postgres;
 -- ddl-end --
 
--- object: sv_game.stocks | type: TABLE --
--- DROP TABLE IF EXISTS sv_game.stocks CASCADE;
-CREATE TABLE sv_game.stocks (
-	stock_id uuid NOT NULL,
-	ticker_symbol varchar(10) NOT NULL,
-	current_price numeric(16,2) NOT NULL,
-	shares_outstanding bigint NOT NULL,
-	volatility numeric(5,2) NOT NULL,
-	last_trade_time timestamptz NOT NULL,
-	market_id_stock_markets uuid,
-	CONSTRAINT stocks_pk PRIMARY KEY (stock_id)
+-- object: sv_game.companies | type: TABLE --
+-- DROP TABLE IF EXISTS sv_game.companies CASCADE;
+CREATE TABLE sv_game.companies (
+	company_id uuid NOT NULL,
+	name varchar(255) NOT NULL,
+	cash_balance numeric(32,2) NOT NULL DEFAULT 0.00,
+	net_worth numeric(32,2) NOT NULL,
+	reputation integer NOT NULL DEFAULT 500,
+	market_share numeric(5,2) NOT NULL DEFAULT 0.00,
+	growth_rate numeric(5,2) NOT NULL,
+	founding_date date NOT NULL,
+	is_publicly_traded boolean NOT NULL DEFAULT FALSE,
+	production_capacity integer NOT NULL,
+	r_and_d_level integer NOT NULL DEFAULT 0,
+	marketing_level integer NOT NULL DEFAULT 0,
+	category_id_business_categories uuid,
+	player_id_players uuid,
+	npc_id_npcs uuid,
+	CONSTRAINT companies_pk PRIMARY KEY (company_id)
 );
 -- ddl-end --
-ALTER TABLE sv_game.stocks OWNER TO postgres;
+ALTER TABLE sv_game.companies OWNER TO postgres;
 -- ddl-end --
 
 -- object: sv_game.company_buildings | type: TABLE --
@@ -327,29 +354,21 @@ CREATE TABLE sv_game.stock_markets (
 ALTER TABLE sv_game.stock_markets OWNER TO postgres;
 -- ddl-end --
 
--- object: sv_game.companies | type: TABLE --
--- DROP TABLE IF EXISTS sv_game.companies CASCADE;
-CREATE TABLE sv_game.companies (
-	company_id uuid NOT NULL,
-	name varchar(255) NOT NULL,
-	cash_balance numeric(32,2) NOT NULL DEFAULT 0.00,
-	net_worth numeric(32,2) NOT NULL,
-	reputation integer NOT NULL DEFAULT 500,
-	market_share numeric(5,2) NOT NULL DEFAULT 0.00,
-	growth_rate numeric(5,2) NOT NULL,
-	founding_date date NOT NULL,
-	is_publicly_traded boolean NOT NULL DEFAULT FALSE,
-	production_capacity integer NOT NULL,
-	r_and_d_level integer NOT NULL DEFAULT 0,
-	marketing_level integer NOT NULL DEFAULT 0,
-	category_id_business_categories uuid,
-	stock_id_stocks uuid,
-	player_id_players uuid,
-	npc_id_npcs uuid,
-	CONSTRAINT companies_pk PRIMARY KEY (company_id)
+-- object: sv_game.stocks | type: TABLE --
+-- DROP TABLE IF EXISTS sv_game.stocks CASCADE;
+CREATE TABLE sv_game.stocks (
+	stock_id uuid NOT NULL,
+	ticker_symbol varchar(10) NOT NULL,
+	current_price numeric(16,2) NOT NULL,
+	shares_outstanding bigint NOT NULL,
+	volatility numeric(5,2) NOT NULL,
+	last_trade_time timestamptz NOT NULL,
+	market_id_stock_markets uuid,
+	company_id_companies uuid,
+	CONSTRAINT stocks_pk PRIMARY KEY (stock_id)
 );
 -- ddl-end --
-ALTER TABLE sv_game.companies OWNER TO postgres;
+ALTER TABLE sv_game.stocks OWNER TO postgres;
 -- ddl-end --
 
 -- object: sv_game.stock_price_history | type: TABLE --
@@ -474,6 +493,7 @@ CREATE TABLE sv_game.transactions (
 	description text NOT NULL,
 	transaction_date timestamptz NOT NULL,
 	related_entity_id uuid,
+	related_entity_type varchar(255),
 	player_id_players uuid,
 	company_id_companies uuid,
 	currency_id_currencies uuid,
@@ -626,38 +646,28 @@ CREATE TABLE sv_game.bets (
 	bet_date timestamptz NOT NULL,
 	details jsonb NOT NULL,
 	player_id_players uuid,
+	debt_id_debts uuid,
+	cockfight_id_cockfights uuid,
 	CONSTRAINT bets_pk PRIMARY KEY (bet_id)
 );
 -- ddl-end --
 ALTER TABLE sv_game.bets OWNER TO postgres;
 -- ddl-end --
 
--- object: sv_game.players | type: TABLE --
--- DROP TABLE IF EXISTS sv_game.players CASCADE;
-CREATE TABLE sv_game.players (
-	player_id uuid NOT NULL,
-	name varchar(255) NOT NULL,
-	gender varchar(50) NOT NULL,
-	appearance_data jsonb NOT NULL,
-	cash_balance numeric(64,2) NOT NULL DEFAULT 0.00,
-	health integer NOT NULL DEFAULT 100,
-	happiness integer NOT NULL DEFAULT 100,
-	karma integer NOT NULL DEFAULT 500,
-	energy integer NOT NULL DEFAULT 100,
-	education_level varchar(100) NOT NULL DEFAULT "None",
-	education_score integer NOT NULL DEFAULT 0,
-	experience_points integer NOT NULL DEFAULT 0,
-	date_of_birth date NOT NULL,
-	age integer NOT NULL,
-	game_id_games uuid,
-	city_id_cities uuid,
-	plot_id_plots uuid,
-	job_id_jobs uuid,
-	attribute_id_player_attributes uuid,
-	CONSTRAINT players_pk PRIMARY KEY (player_id)
+-- object: sv_game.player_attributes | type: TABLE --
+-- DROP TABLE IF EXISTS sv_game.player_attributes CASCADE;
+CREATE TABLE sv_game.player_attributes (
+	attribute_id uuid NOT NULL,
+	strength integer NOT NULL DEFAULT 1,
+	intelligence integer NOT NULL DEFAULT 1,
+	charisma integer NOT NULL DEFAULT 1,
+	luck integer NOT NULL DEFAULT 1,
+	last_updated_time timestamptz NOT NULL,
+	player_id_players uuid,
+	CONSTRAINT player_attributes_pk PRIMARY KEY (attribute_id)
 );
 -- ddl-end --
-ALTER TABLE sv_game.players OWNER TO postgres;
+ALTER TABLE sv_game.player_attributes OWNER TO postgres;
 -- ddl-end --
 
 -- object: sv_game.player_status_effects | type: TABLE --
@@ -946,18 +956,6 @@ REFERENCES sv_game.stocks (stock_id) MATCH FULL
 ON DELETE CASCADE ON UPDATE CASCADE;
 -- ddl-end --
 
--- object: stocks_fk | type: CONSTRAINT --
--- ALTER TABLE sv_game.companies DROP CONSTRAINT IF EXISTS stocks_fk CASCADE;
-ALTER TABLE sv_game.companies ADD CONSTRAINT stocks_fk FOREIGN KEY (stock_id_stocks)
-REFERENCES sv_game.stocks (stock_id) MATCH FULL
-ON DELETE CASCADE ON UPDATE CASCADE;
--- ddl-end --
-
--- object: companies_uq | type: CONSTRAINT --
--- ALTER TABLE sv_game.companies DROP CONSTRAINT IF EXISTS companies_uq CASCADE;
-ALTER TABLE sv_game.companies ADD CONSTRAINT companies_uq UNIQUE (stock_id_stocks);
--- ddl-end --
-
 -- object: cryptocurrencies_fk | type: CONSTRAINT --
 -- ALTER TABLE sv_game.crypto_price_history DROP CONSTRAINT IF EXISTS cryptocurrencies_fk CASCADE;
 ALTER TABLE sv_game.crypto_price_history ADD CONSTRAINT cryptocurrencies_fk FOREIGN KEY (crypto_id_cryptocurrencies)
@@ -1119,18 +1117,6 @@ REFERENCES sv_game.cities (city_id) MATCH FULL
 ON DELETE SET NULL ON UPDATE CASCADE;
 -- ddl-end --
 
--- object: player_attributes_fk | type: CONSTRAINT --
--- ALTER TABLE sv_game.players DROP CONSTRAINT IF EXISTS player_attributes_fk CASCADE;
-ALTER TABLE sv_game.players ADD CONSTRAINT player_attributes_fk FOREIGN KEY (attribute_id_player_attributes)
-REFERENCES sv_game.player_attributes (attribute_id) MATCH FULL
-ON DELETE CASCADE ON UPDATE CASCADE;
--- ddl-end --
-
--- object: players_uq | type: CONSTRAINT --
--- ALTER TABLE sv_game.players DROP CONSTRAINT IF EXISTS players_uq CASCADE;
-ALTER TABLE sv_game.players ADD CONSTRAINT players_uq UNIQUE (attribute_id_player_attributes);
--- ddl-end --
-
 -- object: countries_fk | type: CONSTRAINT --
 -- ALTER TABLE sv_game.banks DROP CONSTRAINT IF EXISTS countries_fk CASCADE;
 ALTER TABLE sv_game.banks ADD CONSTRAINT countries_fk FOREIGN KEY (country_id_countries)
@@ -1189,7 +1175,7 @@ CREATE TABLE sv_game.npcs (
 	personality_traits jsonb,
 	financial_status varchar(50) NOT NULL,
 	is_essential boolean NOT NULL DEFAULT FALSE,
-	status varchar(50) NOT NULL DEFAULT "Available",
+	status varchar(50) NOT NULL DEFAULT 'Available',
 	karma integer NOT NULL DEFAULT 500,
 	notes text,
 	game_id_games uuid,
@@ -1290,7 +1276,7 @@ ON DELETE SET NULL ON UPDATE CASCADE;
 -- DROP TABLE IF EXISTS sv_game.player_npc_relationships CASCADE;
 CREATE TABLE sv_game.player_npc_relationships (
 	relationship_id uuid NOT NULL,
-	relationship_type varchar(50) NOT NULL DEFAULT "Neutral",
+	relationship_type varchar(50) NOT NULL DEFAULT 'Neutral',
 	level integer NOT NULL DEFAULT 0,
 	last_interaction_date timestamptz,
 	npc_id_npcs uuid,
@@ -1313,6 +1299,508 @@ ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE sv_game.player_npc_relationships ADD CONSTRAINT players_fk FOREIGN KEY (player_id_players)
 REFERENCES sv_game.players (player_id) MATCH FULL
 ON DELETE CASCADE ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: sv_game.nfts | type: TABLE --
+-- DROP TABLE IF EXISTS sv_game.nfts CASCADE;
+CREATE TABLE sv_game.nfts (
+	nft_id uuid NOT NULL,
+	contract_address varchar(255),
+	token_id varchar(255),
+	name varchar(255) NOT NULL,
+	description text,
+	image_path varchar(255),
+	generation_params jsonb,
+	creation_date timestamptz NOT NULL,
+	initial_value numeric(32,2) NOT NULL,
+	current_value numeric(32,2) NOT NULL,
+	game_id_games uuid,
+	player_id_players uuid,
+	npc_id_npcs uuid,
+	CONSTRAINT nfts_pk PRIMARY KEY (nft_id)
+);
+-- ddl-end --
+ALTER TABLE sv_game.nfts OWNER TO postgres;
+-- ddl-end --
+
+-- object: sv_game.player_nft_holdings | type: TABLE --
+-- DROP TABLE IF EXISTS sv_game.player_nft_holdings CASCADE;
+CREATE TABLE sv_game.player_nft_holdings (
+	holding_id uuid NOT NULL,
+	acquisition_date timestamptz NOT NULL,
+	acquisition_price numeric(32,2) NOT NULL,
+	is_listed_for_sale boolean NOT NULL DEFAULT FALSE,
+	listing_price numeric(32,2),
+	nft_id_nfts uuid,
+	player_id_players uuid,
+	CONSTRAINT player_nft_holdings_pk PRIMARY KEY (holding_id)
+);
+-- ddl-end --
+ALTER TABLE sv_game.player_nft_holdings OWNER TO postgres;
+-- ddl-end --
+
+-- object: games_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.nfts DROP CONSTRAINT IF EXISTS games_fk CASCADE;
+ALTER TABLE sv_game.nfts ADD CONSTRAINT games_fk FOREIGN KEY (game_id_games)
+REFERENCES sv_game.games (game_id) MATCH FULL
+ON DELETE CASCADE ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: nfts_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.player_nft_holdings DROP CONSTRAINT IF EXISTS nfts_fk CASCADE;
+ALTER TABLE sv_game.player_nft_holdings ADD CONSTRAINT nfts_fk FOREIGN KEY (nft_id_nfts)
+REFERENCES sv_game.nfts (nft_id) MATCH FULL
+ON DELETE CASCADE ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: player_nft_holdings_uq | type: CONSTRAINT --
+-- ALTER TABLE sv_game.player_nft_holdings DROP CONSTRAINT IF EXISTS player_nft_holdings_uq CASCADE;
+ALTER TABLE sv_game.player_nft_holdings ADD CONSTRAINT player_nft_holdings_uq UNIQUE (nft_id_nfts);
+-- ddl-end --
+
+-- object: players_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.player_nft_holdings DROP CONSTRAINT IF EXISTS players_fk CASCADE;
+ALTER TABLE sv_game.player_nft_holdings ADD CONSTRAINT players_fk FOREIGN KEY (player_id_players)
+REFERENCES sv_game.players (player_id) MATCH FULL
+ON DELETE CASCADE ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: players_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.nfts DROP CONSTRAINT IF EXISTS players_fk CASCADE;
+ALTER TABLE sv_game.nfts ADD CONSTRAINT players_fk FOREIGN KEY (player_id_players)
+REFERENCES sv_game.players (player_id) MATCH FULL
+ON DELETE SET NULL ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: npcs_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.nfts DROP CONSTRAINT IF EXISTS npcs_fk CASCADE;
+ALTER TABLE sv_game.nfts ADD CONSTRAINT npcs_fk FOREIGN KEY (npc_id_npcs)
+REFERENCES sv_game.npcs (npc_id) MATCH FULL
+ON DELETE CASCADE ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: sv_game.debts | type: TABLE --
+-- DROP TABLE IF EXISTS sv_game.debts CASCADE;
+CREATE TABLE sv_game.debts (
+	debt_id uuid NOT NULL,
+	debt_type varchar(50) NOT NULL DEFAULT 'Loan',
+	original_value numeric(32,2) NOT NULL,
+	current_debt numeric(32,2),
+	interest_rate numeric(5,4) NOT NULL,
+	start_date timestamptz NOT NULL,
+	end_date timestamptz NOT NULL,
+	payment_frequency varchar(50) NOT NULL,
+	next_payment_date timestamptz,
+	minimum_next_payment_amount numeric(32,2),
+	status varchar(50) NOT NULL DEFAULT 'Active',
+	game_id_games uuid,
+	player_id_players uuid,
+	player_id_players1 uuid,
+	player_id_players2 uuid,
+	company_id_companies uuid,
+	company_id_companies1 uuid,
+	company_id_companies2 uuid,
+	npc_id_npcs uuid,
+	npc_id_npcs1 uuid,
+	bank_id_banks uuid,
+	bank_id_banks1 uuid,
+	CONSTRAINT debts_pk PRIMARY KEY (debt_id)
+);
+-- ddl-end --
+ALTER TABLE sv_game.debts OWNER TO postgres;
+-- ddl-end --
+
+-- object: sv_game.debt_collateral | type: TABLE --
+-- DROP TABLE IF EXISTS sv_game.debt_collateral CASCADE;
+CREATE TABLE sv_game.debt_collateral (
+	debt_collateral_id uuid NOT NULL,
+	collateral_type varchar(50) NOT NULL,
+	collateral_entity_id uuid NOT NULL,
+	collateral_value_at_loan_time numeric(32,2) NOT NULL,
+	is_currently_held boolean NOT NULL,
+	debt_id_debts uuid,
+	CONSTRAINT debt_collateral_pk PRIMARY KEY (debt_collateral_id)
+);
+-- ddl-end --
+ALTER TABLE sv_game.debt_collateral OWNER TO postgres;
+-- ddl-end --
+
+-- object: games_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.debts DROP CONSTRAINT IF EXISTS games_fk CASCADE;
+ALTER TABLE sv_game.debts ADD CONSTRAINT games_fk FOREIGN KEY (game_id_games)
+REFERENCES sv_game.games (game_id) MATCH FULL
+ON DELETE CASCADE ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: players_fk_lender_player | type: CONSTRAINT --
+-- ALTER TABLE sv_game.debts DROP CONSTRAINT IF EXISTS players_fk_lender_player CASCADE;
+ALTER TABLE sv_game.debts ADD CONSTRAINT players_fk_lender_player FOREIGN KEY (player_id_players)
+REFERENCES sv_game.players (player_id) MATCH FULL
+ON DELETE SET NULL ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: players_fk_borrower_player | type: CONSTRAINT --
+-- ALTER TABLE sv_game.debts DROP CONSTRAINT IF EXISTS players_fk_borrower_player CASCADE;
+ALTER TABLE sv_game.debts ADD CONSTRAINT players_fk_borrower_player FOREIGN KEY (player_id_players1)
+REFERENCES sv_game.players (player_id) MATCH FULL
+ON DELETE SET NULL ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: players_fk_player_current_owner | type: CONSTRAINT --
+-- ALTER TABLE sv_game.debts DROP CONSTRAINT IF EXISTS players_fk_player_current_owner CASCADE;
+ALTER TABLE sv_game.debts ADD CONSTRAINT players_fk_player_current_owner FOREIGN KEY (player_id_players2)
+REFERENCES sv_game.players (player_id) MATCH FULL
+ON DELETE SET NULL ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: debts_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.debt_collateral DROP CONSTRAINT IF EXISTS debts_fk CASCADE;
+ALTER TABLE sv_game.debt_collateral ADD CONSTRAINT debts_fk FOREIGN KEY (debt_id_debts)
+REFERENCES sv_game.debts (debt_id) MATCH FULL
+ON DELETE CASCADE ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: companies_fk_lender_company | type: CONSTRAINT --
+-- ALTER TABLE sv_game.debts DROP CONSTRAINT IF EXISTS companies_fk_lender_company CASCADE;
+ALTER TABLE sv_game.debts ADD CONSTRAINT companies_fk_lender_company FOREIGN KEY (company_id_companies)
+REFERENCES sv_game.companies (company_id) MATCH FULL
+ON DELETE SET NULL ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: companies_fk_borrower_company | type: CONSTRAINT --
+-- ALTER TABLE sv_game.debts DROP CONSTRAINT IF EXISTS companies_fk_borrower_company CASCADE;
+ALTER TABLE sv_game.debts ADD CONSTRAINT companies_fk_borrower_company FOREIGN KEY (company_id_companies1)
+REFERENCES sv_game.companies (company_id) MATCH FULL
+ON DELETE SET NULL ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: companies_fk_company_current_owner | type: CONSTRAINT --
+-- ALTER TABLE sv_game.debts DROP CONSTRAINT IF EXISTS companies_fk_company_current_owner CASCADE;
+ALTER TABLE sv_game.debts ADD CONSTRAINT companies_fk_company_current_owner FOREIGN KEY (company_id_companies2)
+REFERENCES sv_game.companies (company_id) MATCH FULL
+ON DELETE SET NULL ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: npcs_fk_lender_npc | type: CONSTRAINT --
+-- ALTER TABLE sv_game.debts DROP CONSTRAINT IF EXISTS npcs_fk_lender_npc CASCADE;
+ALTER TABLE sv_game.debts ADD CONSTRAINT npcs_fk_lender_npc FOREIGN KEY (npc_id_npcs)
+REFERENCES sv_game.npcs (npc_id) MATCH FULL
+ON DELETE SET NULL ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: npcs_fk_npc_current_owner | type: CONSTRAINT --
+-- ALTER TABLE sv_game.debts DROP CONSTRAINT IF EXISTS npcs_fk_npc_current_owner CASCADE;
+ALTER TABLE sv_game.debts ADD CONSTRAINT npcs_fk_npc_current_owner FOREIGN KEY (npc_id_npcs1)
+REFERENCES sv_game.npcs (npc_id) MATCH FULL
+ON DELETE SET NULL ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: banks_fk_lender_bank | type: CONSTRAINT --
+-- ALTER TABLE sv_game.debts DROP CONSTRAINT IF EXISTS banks_fk_lender_bank CASCADE;
+ALTER TABLE sv_game.debts ADD CONSTRAINT banks_fk_lender_bank FOREIGN KEY (bank_id_banks)
+REFERENCES sv_game.banks (bank_id) MATCH FULL
+ON DELETE SET NULL ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: banks_fk_bank_current_owner | type: CONSTRAINT --
+-- ALTER TABLE sv_game.debts DROP CONSTRAINT IF EXISTS banks_fk_bank_current_owner CASCADE;
+ALTER TABLE sv_game.debts ADD CONSTRAINT banks_fk_bank_current_owner FOREIGN KEY (bank_id_banks1)
+REFERENCES sv_game.banks (bank_id) MATCH FULL
+ON DELETE SET NULL ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: debts_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.bets DROP CONSTRAINT IF EXISTS debts_fk CASCADE;
+ALTER TABLE sv_game.bets ADD CONSTRAINT debts_fk FOREIGN KEY (debt_id_debts)
+REFERENCES sv_game.debts (debt_id) MATCH FULL
+ON DELETE CASCADE ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: sv_game.roosters | type: TABLE --
+-- DROP TABLE IF EXISTS sv_game.roosters CASCADE;
+CREATE TABLE sv_game.roosters (
+	rooster_id uuid NOT NULL,
+	name varchar(255) NOT NULL,
+	age_days integer NOT NULL,
+	strength integer NOT NULL,
+	speed integer NOT NULL,
+	aggression integer NOT NULL,
+	health integer NOT NULL DEFAULT 100,
+	status varchar(50) NOT NULL DEFAULT 'Available',
+	win_count integer NOT NULL DEFAULT 0,
+	loss_count integer NOT NULL DEFAULT 0,
+	draw_count integer NOT NULL DEFAULT 0,
+	kill_count integer NOT NULL DEFAULT 0,
+	is_deceased boolean NOT NULL DEFAULT FALSE,
+	game_id_games uuid,
+	player_id_players uuid,
+	npc_id_npcs uuid,
+	plot_id_plots uuid,
+	CONSTRAINT roosters_pk PRIMARY KEY (rooster_id)
+);
+-- ddl-end --
+ALTER TABLE sv_game.roosters OWNER TO postgres;
+-- ddl-end --
+
+-- object: sv_game.cockfights | type: TABLE --
+-- DROP TABLE IF EXISTS sv_game.cockfights CASCADE;
+CREATE TABLE sv_game.cockfights (
+	cockfight_id uuid NOT NULL,
+	date_time timestamptz NOT NULL,
+	outcome varchar(50),
+	loser_died boolean,
+	status varchar(50) NOT NULL DEFAULT 'Scheduled',
+	game_id_games uuid,
+	building_id_buildings uuid,
+	rooster_id_roosters uuid,
+	rooster_id_roosters1 uuid,
+	CONSTRAINT cockfights_pk PRIMARY KEY (cockfight_id)
+);
+-- ddl-end --
+ALTER TABLE sv_game.cockfights OWNER TO postgres;
+-- ddl-end --
+
+-- object: games_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.roosters DROP CONSTRAINT IF EXISTS games_fk CASCADE;
+ALTER TABLE sv_game.roosters ADD CONSTRAINT games_fk FOREIGN KEY (game_id_games)
+REFERENCES sv_game.games (game_id) MATCH FULL
+ON DELETE CASCADE ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: players_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.roosters DROP CONSTRAINT IF EXISTS players_fk CASCADE;
+ALTER TABLE sv_game.roosters ADD CONSTRAINT players_fk FOREIGN KEY (player_id_players)
+REFERENCES sv_game.players (player_id) MATCH FULL
+ON DELETE SET NULL ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: npcs_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.roosters DROP CONSTRAINT IF EXISTS npcs_fk CASCADE;
+ALTER TABLE sv_game.roosters ADD CONSTRAINT npcs_fk FOREIGN KEY (npc_id_npcs)
+REFERENCES sv_game.npcs (npc_id) MATCH FULL
+ON DELETE SET NULL ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: plots_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.roosters DROP CONSTRAINT IF EXISTS plots_fk CASCADE;
+ALTER TABLE sv_game.roosters ADD CONSTRAINT plots_fk FOREIGN KEY (plot_id_plots)
+REFERENCES sv_game.plots (plot_id) MATCH FULL
+ON DELETE SET NULL ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: cockfights_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.bets DROP CONSTRAINT IF EXISTS cockfights_fk CASCADE;
+ALTER TABLE sv_game.bets ADD CONSTRAINT cockfights_fk FOREIGN KEY (cockfight_id_cockfights)
+REFERENCES sv_game.cockfights (cockfight_id) MATCH FULL
+ON DELETE RESTRICT ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: games_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.cockfights DROP CONSTRAINT IF EXISTS games_fk CASCADE;
+ALTER TABLE sv_game.cockfights ADD CONSTRAINT games_fk FOREIGN KEY (game_id_games)
+REFERENCES sv_game.games (game_id) MATCH FULL
+ON DELETE CASCADE ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: buildings_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.cockfights DROP CONSTRAINT IF EXISTS buildings_fk CASCADE;
+ALTER TABLE sv_game.cockfights ADD CONSTRAINT buildings_fk FOREIGN KEY (building_id_buildings)
+REFERENCES sv_game.buildings (building_id) MATCH FULL
+ON DELETE RESTRICT ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: roosters_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.cockfights DROP CONSTRAINT IF EXISTS roosters_fk CASCADE;
+ALTER TABLE sv_game.cockfights ADD CONSTRAINT roosters_fk FOREIGN KEY (rooster_id_roosters)
+REFERENCES sv_game.roosters (rooster_id) MATCH FULL
+ON DELETE RESTRICT ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: roosters_fk1 | type: CONSTRAINT --
+-- ALTER TABLE sv_game.cockfights DROP CONSTRAINT IF EXISTS roosters_fk1 CASCADE;
+ALTER TABLE sv_game.cockfights ADD CONSTRAINT roosters_fk1 FOREIGN KEY (rooster_id_roosters1)
+REFERENCES sv_game.roosters (rooster_id) MATCH FULL
+ON DELETE RESTRICT ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: sv_game.vehicletypes | type: TABLE --
+-- DROP TABLE IF EXISTS sv_game.vehicletypes CASCADE;
+CREATE TABLE sv_game.vehicletypes (
+	vehicletype_id uuid NOT NULL,
+	name varchar(255) NOT NULL,
+	maker varchar(255) NOT NULL,
+	type varchar(50) NOT NULL,
+	base_price numeric(32,2) NOT NULL,
+	passenger_capacity integer NOT NULL DEFAULT 1,
+	cargo_capacity integer NOT NULL DEFAULT 0,
+	speed_modifier numeric(5,2) NOT NULL DEFAULT 1.0,
+	work_efficiency_modifier numeric(5,2) NOT NULL DEFAULT 0.0,
+	garage_size_needed varchar(50) NOT NULL DEFAULT 'Small',
+	game_id_games uuid,
+	CONSTRAINT vehicletypes_pk PRIMARY KEY (vehicletype_id)
+);
+-- ddl-end --
+ALTER TABLE sv_game.vehicletypes OWNER TO postgres;
+-- ddl-end --
+
+-- object: sv_game.vehicles | type: TABLE --
+-- DROP TABLE IF EXISTS sv_game.vehicles CASCADE;
+CREATE TABLE sv_game.vehicles (
+	vehicle_id uuid NOT NULL,
+	purchase_price numeric(32,2) NOT NULL,
+	current_value numeric(32,2) NOT NULL,
+	condition_percentage integer NOT NULL DEFAULT 100,
+	mileage integer NOT NULL DEFAULT 0,
+	status varchar(50) NOT NULL DEFAULT 'Parked',
+	garage_id_garages uuid,
+	game_id_games uuid,
+	vehicletype_id_vehicletypes uuid,
+	player_id_players uuid,
+	company_id_companies uuid,
+	plot_id_plots uuid,
+	CONSTRAINT vehicles_pk PRIMARY KEY (vehicle_id)
+);
+-- ddl-end --
+ALTER TABLE sv_game.vehicles OWNER TO postgres;
+-- ddl-end --
+
+-- object: sv_game.garages | type: TABLE --
+-- DROP TABLE IF EXISTS sv_game.garages CASCADE;
+CREATE TABLE sv_game.garages (
+	garage_id uuid NOT NULL,
+	total_slots integer NOT NULL,
+	available_slots integer NOT NULL,
+	slot_size_type varchar(50) NOT NULL,
+	game_id_games uuid,
+	building_id_buildings uuid,
+	CONSTRAINT garages_pk PRIMARY KEY (garage_id)
+);
+-- ddl-end --
+ALTER TABLE sv_game.garages OWNER TO postgres;
+-- ddl-end --
+
+-- object: sv_game.garage_parking | type: TABLE --
+-- DROP TABLE IF EXISTS sv_game.garage_parking CASCADE;
+CREATE TABLE sv_game.garage_parking (
+	garage_parking_id uuid NOT NULL,
+	parking_spot_number varchar(50),
+	garage_id_garages uuid,
+	vehicle_id_vehicles uuid,
+	CONSTRAINT garage_parking_pk PRIMARY KEY (garage_parking_id)
+);
+-- ddl-end --
+ALTER TABLE sv_game.garage_parking OWNER TO postgres;
+-- ddl-end --
+
+-- object: garages_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.garage_parking DROP CONSTRAINT IF EXISTS garages_fk CASCADE;
+ALTER TABLE sv_game.garage_parking ADD CONSTRAINT garages_fk FOREIGN KEY (garage_id_garages)
+REFERENCES sv_game.garages (garage_id) MATCH FULL
+ON DELETE CASCADE ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: garages_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.vehicles DROP CONSTRAINT IF EXISTS garages_fk CASCADE;
+ALTER TABLE sv_game.vehicles ADD CONSTRAINT garages_fk FOREIGN KEY (garage_id_garages)
+REFERENCES sv_game.garages (garage_id) MATCH FULL
+ON DELETE SET NULL ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: games_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.vehicletypes DROP CONSTRAINT IF EXISTS games_fk CASCADE;
+ALTER TABLE sv_game.vehicletypes ADD CONSTRAINT games_fk FOREIGN KEY (game_id_games)
+REFERENCES sv_game.games (game_id) MATCH FULL
+ON DELETE CASCADE ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: games_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.vehicles DROP CONSTRAINT IF EXISTS games_fk CASCADE;
+ALTER TABLE sv_game.vehicles ADD CONSTRAINT games_fk FOREIGN KEY (game_id_games)
+REFERENCES sv_game.games (game_id) MATCH FULL
+ON DELETE CASCADE ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: vehicletypes_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.vehicles DROP CONSTRAINT IF EXISTS vehicletypes_fk CASCADE;
+ALTER TABLE sv_game.vehicles ADD CONSTRAINT vehicletypes_fk FOREIGN KEY (vehicletype_id_vehicletypes)
+REFERENCES sv_game.vehicletypes (vehicletype_id) MATCH FULL
+ON DELETE RESTRICT ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: players_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.vehicles DROP CONSTRAINT IF EXISTS players_fk CASCADE;
+ALTER TABLE sv_game.vehicles ADD CONSTRAINT players_fk FOREIGN KEY (player_id_players)
+REFERENCES sv_game.players (player_id) MATCH FULL
+ON DELETE SET NULL ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: companies_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.vehicles DROP CONSTRAINT IF EXISTS companies_fk CASCADE;
+ALTER TABLE sv_game.vehicles ADD CONSTRAINT companies_fk FOREIGN KEY (company_id_companies)
+REFERENCES sv_game.companies (company_id) MATCH FULL
+ON DELETE SET NULL ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: plots_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.vehicles DROP CONSTRAINT IF EXISTS plots_fk CASCADE;
+ALTER TABLE sv_game.vehicles ADD CONSTRAINT plots_fk FOREIGN KEY (plot_id_plots)
+REFERENCES sv_game.plots (plot_id) MATCH FULL
+ON DELETE SET NULL ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: games_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.garages DROP CONSTRAINT IF EXISTS games_fk CASCADE;
+ALTER TABLE sv_game.garages ADD CONSTRAINT games_fk FOREIGN KEY (game_id_games)
+REFERENCES sv_game.games (game_id) MATCH FULL
+ON DELETE CASCADE ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: buildings_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.garages DROP CONSTRAINT IF EXISTS buildings_fk CASCADE;
+ALTER TABLE sv_game.garages ADD CONSTRAINT buildings_fk FOREIGN KEY (building_id_buildings)
+REFERENCES sv_game.buildings (building_id) MATCH FULL
+ON DELETE RESTRICT ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: garages_uq | type: CONSTRAINT --
+-- ALTER TABLE sv_game.garages DROP CONSTRAINT IF EXISTS garages_uq CASCADE;
+ALTER TABLE sv_game.garages ADD CONSTRAINT garages_uq UNIQUE (building_id_buildings);
+-- ddl-end --
+
+-- object: vehicles_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.garage_parking DROP CONSTRAINT IF EXISTS vehicles_fk CASCADE;
+ALTER TABLE sv_game.garage_parking ADD CONSTRAINT vehicles_fk FOREIGN KEY (vehicle_id_vehicles)
+REFERENCES sv_game.vehicles (vehicle_id) MATCH FULL
+ON DELETE SET NULL ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: garage_parking_uq | type: CONSTRAINT --
+-- ALTER TABLE sv_game.garage_parking DROP CONSTRAINT IF EXISTS garage_parking_uq CASCADE;
+ALTER TABLE sv_game.garage_parking ADD CONSTRAINT garage_parking_uq UNIQUE (vehicle_id_vehicles);
+-- ddl-end --
+
+-- object: players_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.player_attributes DROP CONSTRAINT IF EXISTS players_fk CASCADE;
+ALTER TABLE sv_game.player_attributes ADD CONSTRAINT players_fk FOREIGN KEY (player_id_players)
+REFERENCES sv_game.players (player_id) MATCH FULL
+ON DELETE SET NULL ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: player_attributes_uq | type: CONSTRAINT --
+-- ALTER TABLE sv_game.player_attributes DROP CONSTRAINT IF EXISTS player_attributes_uq CASCADE;
+ALTER TABLE sv_game.player_attributes ADD CONSTRAINT player_attributes_uq UNIQUE (player_id_players);
+-- ddl-end --
+
+-- object: companies_fk | type: CONSTRAINT --
+-- ALTER TABLE sv_game.stocks DROP CONSTRAINT IF EXISTS companies_fk CASCADE;
+ALTER TABLE sv_game.stocks ADD CONSTRAINT companies_fk FOREIGN KEY (company_id_companies)
+REFERENCES sv_game.companies (company_id) MATCH FULL
+ON DELETE SET NULL ON UPDATE CASCADE;
+-- ddl-end --
+
+-- object: stocks_uq | type: CONSTRAINT --
+-- ALTER TABLE sv_game.stocks DROP CONSTRAINT IF EXISTS stocks_uq CASCADE;
+ALTER TABLE sv_game.stocks ADD CONSTRAINT stocks_uq UNIQUE (company_id_companies);
 -- ddl-end --
 
 
